@@ -26,7 +26,8 @@ main = do
                , windowDefaultHeight := 768 ]
     table <- tableNew 3 3 True
     containerAdd window table
-    buttonOriginal <- buttonNewWithLabel "original"
+    imgOriginal <- imageNew
+    imageSetPixelSize imgOriginal 300
     buttonTransformed <- buttonNewWithLabel "transformed"
     buttonDiff <- buttonNewWithLabel "diff"
     buttonQuit <- buttonNewWithLabel "quit"
@@ -35,7 +36,7 @@ main = do
     numberOfAngles <- adjustmentNew 10.0 5.0 100.0 1.0 1.0 0.0
     numberOfRays <- adjustmentNew 10.0 5.0 100.0 1.0 1.0 0.0
 
-    tableAttachDefaults table buttonOriginal 0 1 0 1
+    tableAttachDefaults table imgOriginal 0 1 0 1
     tableAttachDefaults table buttonTransformed 0 1 1 2
     tableAttachDefaults table buttonDiff 0 1 2 3
 
@@ -48,6 +49,15 @@ main = do
 
     fileChooser <- fileChooserWidgetNew FileChooserActionOpen
     tableAttachDefaults table fileChooser 1 3 0 2
+
+    fileChooserSetPreviewWidget fileChooser imgOriginal
+
+    onUpdatePreview fileChooser $ do
+        file <- fileChooserGetPreviewFilename fileChooser
+        case file of
+            Nothing -> putStrLn "No file selected"
+            Just fpath -> imageSetFromFile imgOriginal fpath
+        widgetSetSizeRequest imgOriginal 300 300
 
     onDestroy window mainQuit
     widgetShowAll window
