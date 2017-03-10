@@ -5,6 +5,18 @@ import Control.Monad.IO.Class
 import Data.IORef
 import Graphics.UI.Gtk hiding (Action, backspace)
 
+addSpinButton :: HBox -> String -> Double -> Double -> IO SpinButton
+addSpinButton box name minValue maxValue = do
+    vbox  <- vBoxNew False 0
+    boxPackStart box vbox PackRepel 0
+    label <- labelNew (Just name)
+    miscSetAlignment label 0.0 0.5
+    boxPackStart vbox label PackNatural 0
+    spinb <- spinButtonNewWithRange minValue maxValue 1.0
+    boxPackStart vbox spinb PackNatural 0
+    return spinb
+
+
 main :: IO ()
 main = do
     void initGUI
@@ -29,14 +41,13 @@ main = do
     tableAttachDefaults table buttonQuit 1 2 0 1
 
 
+    boxWithSpins <- hBoxNew True 10
 
-    boxWithSliders <- vBoxNew True 10
-    raysScale  <- hScaleNew numberOfRays
-    angleScale  <- hScaleNew numberOfAngles
-    boxPackStart boxWithSliders raysScale PackGrow 10
-    boxPackStart boxWithSliders angleScale PackGrow 10
+    raysSpin <- addSpinButton boxWithSpins "Rays number" 100.0 500.0
+    scansSpin <- addSpinButton boxWithSpins "Scans number" 5.0 100.0
 
-    tableAttachDefaults table boxWithSliders 1 2 1 2
+    
+    tableAttachDefaults table boxWithSpins 1 2 1 2
 
     onDestroy window mainQuit
     widgetShowAll window
