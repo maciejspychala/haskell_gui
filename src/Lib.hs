@@ -1,6 +1,5 @@
 module Lib
-    ( processImage,
-      processImage2
+    ( processImage2
     ) where
 
 import Codec.Picture
@@ -11,22 +10,46 @@ import System.IO
 import Data.Array.Repa as R
 import Data.Array.Repa.Repr.Vector
 import Prelude as P
+import Control.Monad
 
-processImage2 :: String -> Double -> IO ()
-processImage2 fname angle = do 
+processImage2 :: String -> Int -> IO ()
+processImage2 fname nsteps = do 
   a <- readImage $ fname
   case a of
     Left err -> putStrLn err
     Right img -> do
-      putStrLn "Image Loaded"
+      putStrLn $ "Image Loaded"
       let grey = pixelMap rgbToGreyscale $ convertRGB8 img
-          result = repaDecompose grey angle
-      case result of
-        Just r -> do
-          let renderer x y = r ! (Z :. x :. y)
-              (Z :. w :. h) = extent r
-          writePng "res/result.png" $ generateImage renderer w h
-      print "--OK"
+          step = 180.0 / fromIntegral nsteps;
+          angle = takeWhile (<180) [x * step | x <- [0..]]
+      putStrLn "Calculating projections"
+
+      decomposition <- return $ angle >>= repaDecompose grey
+      projection <- return $ decomposition >>= repaProject
+      result' <- computeUnboxedP $ foldr1 append projection :: IO (Array U DIM2 Double)
+
+      putStrLn "Normalizing result"
+      max <- foldAllP max 0 result'
+      putStrLn $ "Max: " P.++ show max
+      result <- computeUnboxedP $ R.map (/max) result' :: IO (Array U DIM2 Double)
+
+      putStrLn "Converting to image"
+      let dToPx x = PixelYA8 (round (x * 255)) 255
+      let renderer x y = dToPx $ result ! (Z :. x :. y)
+          (Z :. w :. h) = extent result
+
+      putStrLn "Saving image"
+      writePng "res/result.png" $ generateImage renderer w h
+      putStrLn "--DONE"
+
+repaProject :: (Monad m) => (Array V DIM2 PixelYA8) -> m (Array D DIM2 Double)
+repaProject arr = do
+    let p (PixelYA8 y a) = fromIntegral y / 255.0 :: Double
+    doubles <- computeUnboxedP . transpose $ R.traverse arr id (\f (Z :. i :. j) -> p $ f (Z :. i :. j))
+    projected <- foldP (+) 0 doubles
+    let (Z :. w) = extent projected
+    let dw = fromIntegral w :: Double
+    return $ (reshape (Z :. w :. 1) . R.map (/dw)) projected
 
 rotateAround :: (Double, Double) -> (Int, Int) -> Double -> (Int, Int)
 rotateAround (cx, cy) pt angle = let
@@ -37,7 +60,7 @@ rotateAround (cx, cy) pt angle = let
       pt
   in (truncate (rx + cx), truncate (ry + cy))
 
-repaDecompose :: Image PixelYA8 -> Double -> Maybe (Array V DIM2 PixelYA8)
+repaDecompose :: (Monad m) => Image PixelYA8 -> Double -> m (Array V DIM2 PixelYA8)
 repaDecompose img angle = let
     w = imageWidth img
     h = imageHeight img
@@ -58,93 +81,15 @@ repaDecompose img angle = let
 
     toPixel (x, y) = if x >= 0 && y >= 0 && x < w && y < h
       then pixelAt img x y
-      else PixelYA8 100 255
+      else PixelYA8 0 255
 
     arr = fromListUnboxed (Z :. w :. h) [ (x, y) | x <- [0..(w - 1)], y <-[0..(h - 1)]]
     rotated = R.traverse arr (\(Z :. a :. b) -> (Z :. iHyp :. iHyp)) (\f (Z :. i :. j) -> toPixel $ rotateAround center (i - xOffset, j - yOffset) fi)
     result = computeVectorP rotated
   in result
 
-processImage :: String -> Double -> IO ()
-processImage fname angle = do
-  a <- readImage $ fname
-  case a of
-    Left err -> putStrLn err
-    Right img -> do
-      putStrLn "Image Loaded"
-      let grey = pixelMap rgbToGreyscale $ convertRGB8 img
-          result = decompose grey angle
-          w = length $ result !! 0
-          h = length result
-          renderer x y = PixelYA8 (truncate $ result !! y !! x) 255
-      print $ "saving " P.++ show w P.++ "x" P.++ show h
-      print "--OK"
-      writePng "res/result.png" $ generateImage renderer w h
-  putStrLn "someFunc: "
-
 rgbToGreyscale :: PixelRGB8 -> PixelYA8
 rgbToGreyscale (PixelRGB8 r g b) = 
   let rgb = P.zipWith (*) [0.2126, 0.7152, 0.0722] $ P.map (fromIntegral) [r, g, b] 
       value = fromInteger . round . sum $ rgb :: Pixel8
   in (PixelYA8 value 255)
-
-decompose :: Image PixelYA8 -> Double -> [[Double]]
-decompose img fi = let 
-    w = imageWidth img
-    h = imageHeight img
-    c = ceiling . sqrt . fromIntegral $ w^2 + h^2
-    half = c -- ceiling $ 0.5 * fromIntegral (c - w)
-    result = [scan img fi i | i <- [0..(w - 1)]]
-  in result
-
-xyValue :: Image PixelYA8 -> (Int, Int) -> PixelYA8
-xyValue img (x, y) = let 
-    w = imageWidth img
-    h = imageHeight img
-    value = if x < 0 || y < 0 || x >= w || y >= h
-      then PixelYA8 0 255
-      else pixelAt img x y
-    in value
-
-intersect :: Image PixelYA8 -> Double -> Int -> [(Int, Int)]
-intersect img fi step = let
-    d = fromIntegral :: Int -> Double
-    i = truncate :: Double -> Int
-    w = d $ imageWidth img
-    h = d $ imageHeight img
-
-    c = sqrt $ w^2 + h^2
-    dc = c / 2
-
-    angle = fi * pi / 180
-
-    fgen theta = if mod (round $ theta / (pi / 2)) 2 == 1
-      then (0, \x -> (d step - x * cos theta) / sin theta)
-      else (1, \y -> (d step - y * sin theta) / cos theta)
-    (m, f) = fgen angle
-    (xs, ys) = if m == 0
-      then (
-        fmap (i . f . d) ys, -- xs
-        [0..(i h - 1)] -- ys
-        )
-      else (
-        [0..(i w - 1)], -- xs
-        fmap (i . f . d) xs --ys
-        )
-    result = zip xs ys
-  in --trace ("xs " ++ show m ++ "m: " ++ show result ++ " step " ++ show step ++ "\n") 
-    --trace ("step: " ++ show step)
-  result
-
-scan :: Image PixelYA8 -> Double -> Int -> [Double]
-scan img fi step = let 
-    w = imageWidth img
-    h = imageHeight img
-    angle = fi * pi / 180.0
-    f = (round . \x -> tan angle * fromIntegral x) :: Int -> Int
-    xys = intersect img fi step
-    pixels = fmap (xyValue img) xys
-    result = fmap (\(PixelYA8 y a) -> y) pixels
-  in 
-   --trace ("result[" ++ (show $ length result) ++ "]: (fi " ++ show fi ++ ")\n" ++ show result) $ 
-  fmap fromIntegral result                         

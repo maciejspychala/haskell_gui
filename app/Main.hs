@@ -26,7 +26,7 @@ getFilename fileChooser = do
 
 lol = "siema"
 
-runAlgorithm :: String -> Double -> Image -> IO()
+runAlgorithm :: String -> Int -> Image -> IO()
 runAlgorithm filepath angle target= do
     processImage2 filepath angle 
     imageSetFromFile target "res/result.png"
@@ -60,7 +60,7 @@ main = do
     boxWithSpins <- hBoxNew True 10
 
     raysSpin <- addSpinButton boxWithSpins "Rays number" 100.0 500.0
-    scansSpin <- addSpinButton boxWithSpins "Scans number" 5.0 100.0
+    scansSpin <- addSpinButton boxWithSpins "Scans number" 10.0 300.0
     tableAttachDefaults table boxWithSpins 1 2 2 3
 
     fileChooser <- fileChooserWidgetNew FileChooserActionOpen
@@ -79,7 +79,9 @@ main = do
     buttonRun <- buttonNewWithLabel "run"
     onClicked buttonRun $ do
         fileName <- getFilename fileChooser
-        runAlgorithm (fileName) 50 imgTransformed
+        steps <- spinButtonGetValue scansSpin
+        let stepsInt = round steps :: Int
+        runAlgorithm (fileName) stepsInt imgTransformed
     tableAttachDefaults table buttonRun 1 2 1 2
 
     onDestroy window mainQuit
