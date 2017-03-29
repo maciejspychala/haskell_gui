@@ -26,10 +26,11 @@ getFilename fileChooser = do
 
 lol = "siema"
 
-runAlgorithm :: String -> Int -> Image -> IO()
-runAlgorithm filepath angle target= do
+runAlgorithm :: String -> Int -> Image -> Image -> IO()
+runAlgorithm filepath angle target projection = do
     processImage2 filepath angle 
     imageSetFromFile target "res/result.png"
+    imageSetFromFile projection "res/xd.png"
     widgetSetSizeRequest target 300 300
     return ()
 
@@ -45,7 +46,8 @@ main = do
     imgOriginal <- imageNew
     imageSetPixelSize imgOriginal 300
     imgTransformed <- imageNew
-    buttonDiff <- buttonNewWithLabel "diff"
+    imgProj <- imageNew
+    imageSetPixelSize imgProj 420
     buttonQuit <- buttonNewWithLabel "quit"
     onClicked buttonQuit mainQuit
 
@@ -54,7 +56,7 @@ main = do
 
     tableAttachDefaults table imgOriginal 0 1 0 1
     tableAttachDefaults table imgTransformed 0 1 1 2
-    tableAttachDefaults table buttonDiff 0 1 2 3
+    tableAttachDefaults table imgProj 0 1 2 3
 
 
     boxWithSpins <- hBoxNew True 10
@@ -81,7 +83,7 @@ main = do
         fileName <- getFilename fileChooser
         steps <- spinButtonGetValue scansSpin
         let stepsInt = round steps :: Int
-        runAlgorithm (fileName) stepsInt imgTransformed
+        runAlgorithm (fileName) stepsInt imgTransformed imgProj
     tableAttachDefaults table buttonRun 1 2 1 2
 
     onDestroy window mainQuit

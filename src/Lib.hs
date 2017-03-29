@@ -12,6 +12,37 @@ import Data.Array.Repa.Repr.Vector
 import Prelude as P
 import Control.Monad
 
+xd :: Array U DIM2 Double -> IO ()
+xd img = do
+    let (Z :. w :. h) = extent img
+        angleStep = 180.0 / fromIntegral h
+        anglesList = takeWhile (<180) [a * angleStep | a <- [0..]]
+        wNum = fromIntegral w
+    print anglesList
+    print w
+    print h
+    let renderer xi yi = let
+            x = fromIntegral xi
+            y = fromIntegral yi
+            p = P.map (\a -> round(x * (cos a) + y * (sin a) + wNum/2.0)) anglesList
+            pixelList = P.map (\(p, h) -> img ! (Z :. p :. h)) $ zip p [0..(h-1)]
+            pixelSum = sum pixelList
+            in dToPx $ pixelSum / fromIntegral h
+    
+    --writePng "res/xd.png" $ generateImage (renderer img w h anglesList) w w
+    writePng "res/xd.png" $ generateImage (renderer) w w
+{-
+renderer :: Array U DIM2 Double -> Int -> Int -> [Double] -> Int -> Int -> PixelYA8
+renderer img wi hi anglesList xi yi = let
+    w = fromIntegral wi
+    h = fromIntegral hi
+    x = fromIntegral xi
+    y = fromIntegral yi
+    p = P.map (\a -> round(x * (cos a) + y * (sin a) + w/2)) anglesList
+    pixelList = P.map (\(p, h) -> img ! (Z :. p :. h)) $ zip p [0..(h-1)]
+    pixelSum = sum pixelList
+    in dToPx $ pixelSum / fromIntegral h
+-}
 processImage2 :: String -> Int -> IO ()
 processImage2 fname nsteps = do 
   a <- readImage $ fname
@@ -20,7 +51,7 @@ processImage2 fname nsteps = do
     Right img -> do
       putStrLn $ "Image Loaded"
       let grey = pixelMap rgbToGreyscale $ convertRGB8 img
-          step = 180.0 / fromIntegral nsteps;
+          step = 180.0 / fromIntegral nsteps
           angle = takeWhile (<180) [x * step | x <- [0..]]
       putStrLn "Calculating projections"
 
@@ -32,15 +63,17 @@ processImage2 fname nsteps = do
       max <- foldAllP max 0 result'
       putStrLn $ "Max: " P.++ show max
       result <- computeUnboxedP $ R.map (/max) result' :: IO (Array U DIM2 Double)
+      xd result
 
       putStrLn "Converting to image"
-      let dToPx x = PixelYA8 (round (x * 255)) 255
       let renderer x y = dToPx $ result ! (Z :. x :. y)
           (Z :. w :. h) = extent result
 
       putStrLn "Saving image"
       writePng "res/result.png" $ generateImage renderer w h
       putStrLn "--DONE"
+
+dToPx x = PixelYA8 (round (x * 255)) 255
 
 repaProject :: (Monad m) => (Array V DIM2 PixelYA8) -> m (Array D DIM2 Double)
 repaProject arr = do
