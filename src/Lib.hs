@@ -15,34 +15,29 @@ import Control.Monad
 xd :: Array U DIM2 Double -> IO ()
 xd img = do
     let (Z :. w :. h) = extent img
-        angleStep = 180.0 / fromIntegral h
-        anglesList = takeWhile (<180) [a * angleStep | a <- [0..]]
+        angleStep = pi / fromIntegral h
+        anglesList = takeWhile (<pi) [a * angleStep | a <- [0..]]
         wNum = fromIntegral w
     print anglesList
     print w
     print h
-    let renderer xi yi = let
+    let listOfP (xi, yi) = let
             x = fromIntegral xi
             y = fromIntegral yi
-            p = P.map (\a -> round(x * (cos a) + y * (sin a) + wNum/2.0)) anglesList
+            in P.map (\a -> round((x * (cos a)) + (y * (sin a)) + wNum/2.0)) anglesList    
+    let oo = 150 
+    let aaa = P.map listOfP [(l, k) | l <- [0..oo], k <- [0..oo]]
+    print aaa
+
+    let renderer xi yi = let
+            p = listOfP (xi, yi)
             pixelList = P.map (\(p, h) -> img ! (Z :. p :. h)) $ zip p [0..(h-1)]
             pixelSum = sum pixelList
             in dToPx $ pixelSum / fromIntegral h
     
     --writePng "res/xd.png" $ generateImage (renderer img w h anglesList) w w
-    writePng "res/xd.png" $ generateImage (renderer) w w
-{-
-renderer :: Array U DIM2 Double -> Int -> Int -> [Double] -> Int -> Int -> PixelYA8
-renderer img wi hi anglesList xi yi = let
-    w = fromIntegral wi
-    h = fromIntegral hi
-    x = fromIntegral xi
-    y = fromIntegral yi
-    p = P.map (\a -> round(x * (cos a) + y * (sin a) + w/2)) anglesList
-    pixelList = P.map (\(p, h) -> img ! (Z :. p :. h)) $ zip p [0..(h-1)]
-    pixelSum = sum pixelList
-    in dToPx $ pixelSum / fromIntegral h
--}
+    writePng "res/xd.png" $ generateImage (renderer) oo oo
+
 processImage2 :: String -> Int -> IO ()
 processImage2 fname nsteps = do 
   a <- readImage $ fname
