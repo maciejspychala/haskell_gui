@@ -12,6 +12,11 @@ import Data.Array.Repa.Repr.Vector
 import Prelude as P
 import Control.Monad
 
+geommean array =
+    let len = length array
+        mul = product array
+    in mul ** (1/ fromIntegral len)
+
 xd :: Array U DIM2 Double -> IO ()
 xd img = do
     let (Z :. w :. h) = extent img
