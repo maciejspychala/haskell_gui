@@ -22,21 +22,22 @@ xd img = do
     print w
     print h
     let listOfP (xi, yi) = let
-            x = fromIntegral xi
-            y = fromIntegral yi
+            xd = fromIntegral xi
+            yd = fromIntegral yi
+            x = xd - wNum/2.0
+            y = yd - wNum/2.0
             in P.map (\a -> round((x * (cos a)) + (y * (sin a)) + wNum/2.0)) anglesList    
-    let oo = 150 
-    let aaa = P.map listOfP [(l, k) | l <- [0..oo], k <- [0..oo]]
-    print aaa
 
     let renderer xi yi = let
             p = listOfP (xi, yi)
-            pixelList = P.map (\(p, h) -> img ! (Z :. p :. h)) $ zip p [0..(h-1)]
+            p_zip = zip p [0..(h-1)]
+            p_clean = [(a, b) | (a, b) <- p_zip, a >= 0, a <= (w-1)]
+            pixelList = P.map (\(p, h) -> img ! (Z :. p :. h)) p_clean
             pixelSum = sum pixelList
             in dToPx $ pixelSum / fromIntegral h
     
     --writePng "res/xd.png" $ generateImage (renderer img w h anglesList) w w
-    writePng "res/xd.png" $ generateImage (renderer) oo oo
+    writePng "res/xd.png" $ generateImage (renderer) w w
 
 processImage2 :: String -> Int -> IO ()
 processImage2 fname nsteps = do 
