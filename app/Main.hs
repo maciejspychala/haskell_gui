@@ -62,7 +62,7 @@ main = do
     boxWithSpins <- hBoxNew True 10
 
     raysSpin <- addSpinButton boxWithSpins "Rays number" 100.0 500.0
-    scansSpin <- addSpinButton boxWithSpins "Scans number" 10.0 300.0
+    scansSpin <- addSpinButton boxWithSpins "Scans number" 1.0 300.0
     tableAttachDefaults table boxWithSpins 1 2 2 3
 
     fileChooser <- fileChooserWidgetNew FileChooserActionOpen
