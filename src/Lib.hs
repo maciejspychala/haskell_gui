@@ -21,8 +21,23 @@ geommean array =
 
 rowFilter :: Monad m => Array U DIM1 Double -> m (Array U DIM1 Double)
 rowFilter row =
-    let fftD = fft $ computeS $ R.map (\x -> x :+ 0 ) row
-    in computeUnboxedP $ R.map realPart fftD
+    let fftF = fft $ computeS $ R.map (\x -> x :+ 0 ) row
+        ifftF = ifft fftF
+    in computeUnboxedP $ R.map realPart ifftF
+
+getRow :: Monad m => Array U DIM2 Double -> Int -> m (Array U DIM1 Double)
+getRow array n = 
+    let rowD = slice array (Any :. n :. All)
+    in computeUnboxedP rowD
+
+{-
+mapRows :: Monad m => Array U DIM2 Double -> m (Array U DIM2 Double)
+mapRows array = do
+    let (Z :. w :. h) = extent array
+    mapM (getRow array) [1..h]
+    -}
+
+        
 
 
 xd :: Array U DIM2 Double -> IO ()
@@ -32,9 +47,7 @@ xd img = do
         anglesList = takeWhile (<pi) [a * angleStep | a <- [0..]]
         wNum = fromIntegral w
     let xd = slice img (Any :. w-2 :. All)
-    print anglesList
-    print w
-    print h
+
     let listOfP (xi, yi) = let
             xd = fromIntegral xi
             yd = fromIntegral yi
@@ -65,8 +78,8 @@ processImage2 fname nsteps = do
           angle = takeWhile (<180) [x * step | x <- [0..]]
       putStrLn "Calculating projections"
 
-      decomposition <- return $ angle >>= repaDecompose grey
-      projection <- return $ decomposition >>= repaProject
+      let decomposition = angle >>= repaDecompose grey
+          projection = decomposition >>= repaProject
       result' <- computeUnboxedP $ foldr1 append projection :: IO (Array U DIM2 Double)
 
       putStrLn "Normalizing result"
