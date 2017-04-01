@@ -43,8 +43,8 @@ mapRows func array = do
 
 
 xd :: Array U DIM2 Double -> IO ()
-xd img = do
-    --img <- mapRows rowFilter img2
+xd img2 = do
+    img <- mapRows rowFilter img2
     let (Z :. w :. h) = extent img
         angleStep = pi / fromIntegral h
         anglesList = takeWhile (<pi) [a * angleStep | a <- [0..]]
