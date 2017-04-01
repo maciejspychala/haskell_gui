@@ -21,6 +21,7 @@ library
                        JuicyPixels,
                        gloss,
                        repa,
+                       repa-fftw >= 3.2.3,
                        gtk
   default-language:    Haskell2010
 

@@ -9,6 +9,8 @@ import Debug.Trace
 import System.IO
 import Data.Array.Repa as R
 import Data.Array.Repa.Repr.Vector
+import Data.Array.Repa.FFTW
+import Data.Complex (Complex(..), realPart)
 import Prelude as P
 import Control.Monad
 
@@ -17,12 +19,19 @@ geommean array =
         mul = product array
     in mul ** (1/ fromIntegral len)
 
+rowFilter :: Monad m => Array U DIM1 Double -> m (Array U DIM1 Double)
+rowFilter row =
+    let fftD = fft $ computeS $ R.map (\x -> x :+ 0 ) row
+    in computeUnboxedP $ R.map realPart fftD
+
+
 xd :: Array U DIM2 Double -> IO ()
 xd img = do
     let (Z :. w :. h) = extent img
         angleStep = pi / fromIntegral h
         anglesList = takeWhile (<pi) [a * angleStep | a <- [0..]]
         wNum = fromIntegral w
+    let xd = slice img (Any :. w-2 :. All)
     print anglesList
     print w
     print h
