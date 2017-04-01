@@ -22,7 +22,10 @@ geommean array =
 rowFilter :: Array U DIM1 Double -> Array D DIM1 Double
 rowFilter row =
     let fftF = fft $ computeS $ R.map (\x -> x :+ 0 ) row
-        ifftF = ifft fftF
+        (Z :. w) = extent fftF
+        --fftFilt = R.zipWith (*) fftF (fromListUnboxed (Z :. w) (P.map (\a -> a :+ a) [1..(fromIntegral w)]))
+        fftFilt = R.zipWith (*) fftF (R.map (*0) fftF)
+        ifftF = ifft $ computeS fftFilt
     in R.map realPart ifftF
 
 getRow :: Monad m => Array U DIM2 Double -> Int -> m (Array D DIM1 Double)
@@ -37,9 +40,10 @@ mapRows func array = do
     rows <- mapM (\num -> do
         rowD <- getRow array num
         row <- computeUnboxedP rowD
-        return $ rowFilter row) [1..h]
+        return $ rowFilter row) [0,1..(w-1)]
     let hugeRow = foldr1 append rows
-    computeUnboxedP $ reshape (Z :. w :. h) array
+        hugeList = toList hugeRow
+    return $ fromListUnboxed (Z :. w :. h) hugeList
 
 
 xd :: Array U DIM2 Double -> IO ()
