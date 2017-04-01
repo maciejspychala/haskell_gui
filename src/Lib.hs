@@ -25,23 +25,23 @@ rowFilter row =
         ifftF = ifft fftF
     in computeUnboxedP $ R.map realPart ifftF
 
-getRow :: Monad m => Array U DIM2 Double -> Int -> m (Array U DIM1 Double)
+getRow :: Monad m => Array U DIM2 Double -> Int -> m (Array D DIM1 Double)
 getRow array n = 
     let rowD = slice array (Any :. n :. All)
-    in computeUnboxedP rowD
+    in return rowD
 
-{-
+
 mapRows :: Monad m => Array U DIM2 Double -> m (Array U DIM2 Double)
 mapRows array = do
     let (Z :. w :. h) = extent array
-    mapM (getRow array) [1..h]
-    -}
-
-        
+    rows <- mapM (getRow array) [1..h]
+    let hugeRow = foldr1 append rows
+    computeUnboxedP $ reshape (Z :. w :. h) array
 
 
 xd :: Array U DIM2 Double -> IO ()
-xd img = do
+xd img2 = do
+    img <- mapRows img2
     let (Z :. w :. h) = extent img
         angleStep = pi / fromIntegral h
         anglesList = takeWhile (<pi) [a * angleStep | a <- [0..]]
