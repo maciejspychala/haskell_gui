@@ -23,8 +23,13 @@ rowFilter :: Array U DIM1 Double -> Array D DIM1 Double
 rowFilter row =
     let fftF = fft $ computeS $ R.map (\x -> x :+ 0 ) row
         (Z :. w) = extent fftF
+        xdd haha lol =
+            if lol < haha
+                then do (fromIntegral lol) * 0.6 :: Double
+                else do 0 :: Double
+        xd = fromListUnboxed (Z :. w) $ P.map (\x -> x :+ 0) (P.map (xdd 150) [1..w])
         --fftFilt = R.zipWith (*) fftF (fromListUnboxed (Z :. w) (P.map (\a -> a :+ a) [1..(fromIntegral w)]))
-        fftFilt = R.zipWith (*) fftF (R.map (*0) fftF)
+        fftFilt = R.zipWith (*) fftF xd
         ifftF = ifft $ computeS fftFilt
     in R.map realPart ifftF
 
