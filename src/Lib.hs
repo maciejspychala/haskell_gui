@@ -27,11 +27,11 @@ rowFilter row =
             if lol < haha
                 then do (fromIntegral lol) * 0.6 :: Double
                 else do 0 :: Double
-        xd = fromListUnboxed (Z :. w) $ P.map (\x -> x :+ 0) (P.map (xdd 150) [1..w])
+        xd = fromListUnboxed (Z :. w) $ P.map (\x -> x :+ 0) (P.map (xdd $ round (fromIntegral w/2)) [1..w])
         --fftFilt = R.zipWith (*) fftF (fromListUnboxed (Z :. w) (P.map (\a -> a :+ a) [1..(fromIntegral w)]))
         fftFilt = R.zipWith (*) fftF xd
         ifftF = ifft $ computeS fftFilt
-    in R.map realPart ifftF
+    in R.map (\a -> if a<0 then 0 else a) $ R.map realPart ifftF
 
 getRow :: Monad m => Array U DIM2 Double -> Int -> m (Array D DIM1 Double)
 getRow array n = 
@@ -52,8 +52,8 @@ mapRows func array = do
 
 
 xd :: Array U DIM2 Double -> IO ()
-xd img2 = do
-    img <- mapRows rowFilter img2
+xd img = do
+    --img <- mapRows rowFilter img2
     let (Z :. w :. h) = extent img
         angleStep = pi / fromIntegral h
         anglesList = takeWhile (<pi) [a * angleStep | a <- [0..]]
@@ -97,7 +97,8 @@ processImage2 fname nsteps = do
       putStrLn "Normalizing result"
       max <- foldAllP max 0 result'
       putStrLn $ "Max: " P.++ show max
-      result <- computeUnboxedP $ R.map (/max) result' :: IO (Array U DIM2 Double)
+      result2 <- computeUnboxedP $ R.map (/max) result' :: IO (Array U DIM2 Double)
+      result <- mapRows rowFilter result2
       xd result
 
       putStrLn "Converting to image"
