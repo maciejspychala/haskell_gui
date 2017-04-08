@@ -66,12 +66,13 @@ reconstruct img p originalW = do
 getY a p r x = (x, round ((p - (fromIntegral (x - r) * (cos a))) / (sin a)) + r)
 getX a p r y = (round ((p - (fromIntegral (y - r) * (sin a))) / (cos a)) + r, y)
 
-filterCoords w (x, y) = x>0 && x<w && y>0 && y<w
+filterCoords r (x, y) = ((fromIntegral x - r)**2 + (fromIntegral y - r)**2) < r**2
 
 getLineAvg :: Double -> Double -> Int -> (Double -> Double -> Int -> Int -> (Int, Int)) -> Array U DIM2 Double -> Double
 getLineAvg a p w getCoord img =
     let pixelList = P.map (getCoord a p (div w 2)) [0..w-1]
-        pixelList' = filter (filterCoords w) pixelList
+        r = (fromIntegral w) / 2
+        pixelList' = filter (filterCoords r) pixelList
         len = length pixelList'
         ret = (sum $ P.map (\(x, y) -> img ! (Z :. x :. y)) pixelList') / fromIntegral len
     in if isNaN ret then 0 else ret
