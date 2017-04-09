@@ -10,19 +10,30 @@ import Data.Complex (Complex(..), realPart, magnitude)
 import Prelude as P
 import Control.Monad
 
+myfilter r tresh v =
+    let dist = abs (r - v)
+    in if v < tresh
+        then fromIntegral v * 0.6
+        else 0
+
+normalize :: Monad m => Array U DIM2 Double -> m (Array U DIM2 Double)
+normalize arr = do
+    minn <- foldAllP min 1 arr
+    let arrmin = R.map (+ (-minn)) arr
+    maxx <- foldAllP max 0 arrmin
+    let arrnorm = R.map (/maxx) arrmin
+    computeUnboxedP arrnorm
+
 rowFilter :: Monad m => Array U DIM1 Double -> m (Array D DIM1 Double)
 rowFilter row = do
     rowComplex <- computeP $ R.map (\x -> x :+ 0 ) row
     let fftF = fft $ rowComplex
         (Z :. w) = extent fftF
-        myfilter tresh v
-            | v < tresh = (fromIntegral v) * 0.7
-            | otherwise = 0
         barier = round (fromIntegral w/2)
-        filtered = fromListUnboxed (Z :. w) $ (P.map (myfilter barier) [1..w])
+        filtered = fromListUnboxed (Z :. w) $ (P.map (myfilter (round (fromIntegral w/2)) barier) [1..w])
         fftFilt = R.zipWith (*) fftF filtered
     ifftF <- fmap ifft $ computeP fftFilt
-    return $ R.map (\a -> if a<0 then 0 else (if a > 1 then 1 else a)) $ R.map realPart ifftF
+    return $ R.map realPart ifftF
 
 getRow :: Array U DIM2 Double -> Int -> Array D DIM1 Double
 getRow array n = slice array (Any :. n :. All)
@@ -53,15 +64,18 @@ reconstruct img p originalW = do
             y = yd - wOriginalNum/2.0
             in P.map (\a -> ((x * (cos a)) + (y * (sin a))) + (wNum/2)) anglesList
 
-        renderer x y = let
+        renderer (x, y) = let
             p = listOfP (x, y)
             p_zip = zip p [0..(h-1)]
             p_clean = [(round a, b) | (a, b) <- p_zip, a >= 0, a <= fromIntegral (w-1)]
             pixelList = P.map (\(p, h) -> img ! (Z :. p :. h)) p_clean
             pixelSum = sum pixelList
-            in dToPx $ pixelSum / (fromIntegral $ length pixelList)
+            avg = pixelSum / (fromIntegral $ length pixelList)
+            in if avg > 0 then avg else 0
 
-    writePng "res/reconstruct.png" $ generateImage (renderer) originalW originalW
+    let img' = fromListUnboxed (Z :. originalW :. originalW) (P.map renderer [(a,b) | a <- [0..originalW-1], b <- [0..originalW-1]])
+    img <- normalize img'
+    writePng "res/reconstruct.png" $ generateImage (\x y -> dToPx (img ! (Z :. x :. y))) originalW originalW
 
 
 getY a p r x = (x, round ((p - (fromIntegral (x - r) * (cos a))) / (sin a)) + r)
@@ -91,22 +105,25 @@ processImage fname nsteps nrays opening' = do
         r = fromIntegral w/2
         tresh = sin (opening/2) * r
         p = (sin (opening/2) * r) * 2 / (fromIntegral nrays)
-    let step = pi / fromIntegral nsteps
+        step = pi / fromIntegral nsteps
         angle = takeWhile (<pi) [x * step | x <- [0..]]
     putStrLn "Calculating projections"
     let listOfP = P.map (\v -> ((fromIntegral v) * p) - tresh) [0..nrays-1]
         rest = P.map (\a -> P.map (\p -> getPixelLine a p w img) listOfP) angle
-        maxx = maximum (P.map maximum rest)
-        trans = fromListUnboxed (Z :. length rest :. length (head rest)) $ concat $ P.map (P.map (/maxx)) rest
+        trans = fromListUnboxed (Z :. length rest :. length (head rest)) $ concat $ rest
         trans' = transpose trans
-    nofilter <- computeUnboxedP trans'
+    x <- computeUnboxedP trans'
+    nofilter <- normalize x
     arraySaveToImage nofilter "nofilter"
-    result <- mapRows rowFilter nofilter
+    result' <- mapRows rowFilter nofilter
+    result <- normalize result'
     arraySaveToImage result "filter"
     reconstruct result p w
 
-dToPx x = PixelYA8 (round (x * 255)) 255
-dToPxNormal x = PixelYA8 (round x) 255
+dToPx x
+    | x < 0 = PixelYA8 0 255
+    | x > 1 = PixelYA8 255 255
+    | otherwise = PixelYA8 (round (x * 255)) 255
 
 arraySaveToImage :: Array U DIM2 Double -> String -> IO ()
 arraySaveToImage arr fname = do

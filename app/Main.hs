@@ -63,7 +63,7 @@ main = do
     boxWithSpins <- hBoxNew True 10
 
     raysSpin <- addSpinButton boxWithSpins "Rays number" 300.0 500.0
-    scansSpin <- addSpinButton boxWithSpins "Scans number" 100.0 600.0
+    scansSpin <- addSpinButton boxWithSpins "Scans number" 100.0 900.0
     alphaSpin <- addSpinButton boxWithSpins "alpha" 180.0 180.0
     tableAttachDefaults table boxWithSpins 1 2 2 3
 
