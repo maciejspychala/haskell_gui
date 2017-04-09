@@ -6,35 +6,36 @@ import System.IO
 import Data.Array.Repa as R
 import Data.Array.Repa.Repr.Vector
 import Data.Array.Repa.FFTW
-import Data.Complex (Complex(..), realPart)
+import Data.Complex (Complex(..), realPart, magnitude)
 import Prelude as P
 import Control.Monad
 
-rowFilter :: Array U DIM1 Double -> Array D DIM1 Double
-rowFilter row =
-    let fftF = fft $ computeS $ R.map (\x -> x :+ 0 ) row
+rowFilter :: Monad m => Array U DIM1 Double -> m (Array D DIM1 Double)
+rowFilter row = do
+    rowComplex <- computeP $ R.map (\x -> x :+ 0 ) row
+    let fftF = fft $ rowComplex
         (Z :. w) = extent fftF
         myfilter tresh v
-            | v < tresh = (fromIntegral v) * 0.6 :: Double
-            | otherwise = 0 :: Double
-        filtered = fromListUnboxed (Z :. w) $ P.map (\x -> x :+ 0) (P.map (myfilter $ round (fromIntegral w/2)) [1..w])
+            | v < tresh = (fromIntegral v) * 0.7
+            | otherwise = 0
+        barier = round (fromIntegral w/2)
+        filtered = fromListUnboxed (Z :. w) $ (P.map (myfilter barier) [1..w])
         fftFilt = R.zipWith (*) fftF filtered
-        ifftF = ifft $ computeS fftFilt
-    in R.map (\a -> if a<0 then 0 else a) $ R.map realPart ifftF
+    ifftF <- fmap ifft $ computeP fftFilt
+    return $ R.map (\a -> if a<0 then 0 else (if a > 1 then 1 else a)) $ R.map realPart ifftF
 
-getRow :: Monad m => Array U DIM2 Double -> Int -> m (Array D DIM1 Double)
-getRow array n = return $ slice array (Any :. n :. All)
+getRow :: Array U DIM2 Double -> Int -> Array D DIM1 Double
+getRow array n = slice array (Any :. n :. All)
 
-mapRows :: Monad m => (Array U DIM1 Double -> Array D DIM1 Double) -> Array U DIM2 Double -> m (Array U DIM2 Double)
+mapRows :: Monad m => (Array U DIM1 Double -> m (Array D DIM1 Double)) -> Array U DIM2 Double -> m (Array U DIM2 Double)
 mapRows func array = do
     let (Z :. w :. h) = extent array
     rows <- mapM (\num -> do
-        rowD <- getRow array num
+        let rowD = getRow array num
         row <- computeUnboxedP rowD
-        return $ func row) [0,1..(w-1)]
-    let hugeRow = foldr1 append rows
-        hugeList = toList hugeRow
-    return $ fromListUnboxed (Z :. w :. h) hugeList
+        func row) [0,1..(w-1)]
+    let hugeRow = toList $ foldr1 append rows
+    return $ fromListUnboxed (Z :. w :. h) hugeRow
 
 reconstruct :: Array U DIM2 Double -> Double -> Int -> IO ()
 reconstruct img p originalW = do
@@ -50,7 +51,7 @@ reconstruct img p originalW = do
             yd = fromIntegral yi
             x = xd - wOriginalNum/2.0
             y = yd - wOriginalNum/2.0
-            in P.map (\a -> (((x * (cos a)) + (y * (sin a))) * ratio ) + (wNum/2)) anglesList
+            in P.map (\a -> ((x * (cos a)) + (y * (sin a))) + (wNum/2)) anglesList
 
         renderer x y = let
             p = listOfP (x, y)
