@@ -46,33 +46,28 @@ mapRows func array = do
     return $ fromListUnboxed (Z :. w :. h) hugeRow
 
 reconstruct :: Array D DIM2 Double -> Double -> Int -> IO ()
-reconstruct img p originalW = do
+reconstruct img p orgW = do
     let (Z :. w :. h) = extent img
         angleStep = pi / fromIntegral h
         anglesList = takeWhile (<pi) [a * angleStep | a <- [0..]]
-        wNum = fromIntegral w
-        wOriginalNum = fromIntegral originalW
-        ratio = wNum / wOriginalNum
+        orgWNum = fromIntegral orgW
 
-        listOfP (xi, yi) = let
-            xd = fromIntegral xi
-            yd = fromIntegral yi
-            x = xd - wOriginalNum/2.0
-            y = yd - wOriginalNum/2.0
-            in P.map (\a -> ((x * (cos a)) + (y * (sin a))) + (wNum/2)) anglesList
+        listOfIndicies (x, y) = let
+            list = P.map (\a -> round $ (x * sin a + y * cos a)/p + orgWNum/2) anglesList
+            list_zip = zip list [0..(h-1)]
+            in [(a,b) | (a,b) <- list_zip, a >= 0, a < w]
 
-        renderer (x, y) = let
-            p = listOfP (x, y)
-            p_zip = zip p [0..(h-1)]
-            p_clean = [(round a, b) | (a, b) <- p_zip, a >= 0, a <= fromIntegral (w-1)]
-            pixelList = P.map (\(p, h) -> img ! (Z :. p :. h)) p_clean
+        render (x, y) = let
+            list = listOfIndicies (x, y)
+            pixelList = P.map (\(p, h) -> img ! (Z :. p :. h)) list
             pixelSum = sum pixelList
             avg = pixelSum / (fromIntegral $ length pixelList)
             in if avg > 0 then avg else 0
 
-    let img' = fromListUnboxed (Z :. originalW :. originalW) (P.map renderer [(a,b) | a <- [0..originalW-1], b <- [0..originalW-1]])
+    let imageIndicies = [orgWNum/(-2)..orgWNum/2-1]
+        img' = fromListUnboxed (Z :. orgW :. orgW) (P.map render [(a,b) | a <- imageIndicies , b <- imageIndicies])
     img <- normalize img'
-    writePng "res/reconstruct.png" $ generateImage (\x y -> dToPx (img ! (Z :. x :. y))) originalW originalW
+    writePng "res/reconstruct.png" $ generateImage (\x y -> dToPx (img ! (Z :. x :. y))) orgW orgW
 
 
 getY a p r x = (x, round ((p - (fromIntegral (x - r) * (cos a))) / (sin a)) + r)
