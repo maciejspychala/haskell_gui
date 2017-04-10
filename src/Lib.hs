@@ -10,12 +10,6 @@ import Data.Complex (Complex(..), realPart, magnitude)
 import Prelude as P
 import Control.Monad
 
-myfilter r tresh v =
-    let dist = abs (r - v)
-    in if v < tresh
-        then fromIntegral v * 0.6
-        else 0
-
 normalize :: Monad m => Array U DIM2 Double -> m (Array D DIM2 Double)
 normalize arr = do
     minn <- foldAllP min 1 arr
@@ -24,13 +18,17 @@ normalize arr = do
     let arrnorm = R.map (/maxx) arrmin
     return arrnorm
 
+myfilter tresh v
+    | v < tresh = fromIntegral v * 0.6
+    | otherwise = 0
+
 rowFilter :: Monad m => Array D DIM1 Double -> m (Array D DIM1 Double)
 rowFilter row = do
     rowComplex <- computeP $ R.map (\x -> x :+ 0 ) row
     let fftF = fft $ rowComplex
         (Z :. w) = extent fftF
         barier = round (fromIntegral w/2)
-        filtered = fromListUnboxed (Z :. w) $ (P.map (myfilter (round (fromIntegral w/2)) barier) [1..w])
+        filtered = fromListUnboxed (Z :. w) $ (P.map (myfilter barier) [1..w])
         fftFilt = R.zipWith (*) fftF filtered
     ifftF <- fmap ifft $ computeP fftFilt
     return $ R.map realPart ifftF
@@ -91,8 +89,8 @@ getLineAvg a p w getCoord img =
         ret = (sum $ P.map (\(x, y) -> img ! (Z :. x :. y)) pixelList') / fromIntegral len
     in if isNaN ret then 0 else ret
 
-getPixelLine :: Double -> Double -> Int -> Array U DIM2 Double -> Double
-getPixelLine a p w img
+getDetectorValue :: Double -> Double -> Int -> Array U DIM2 Double -> Double
+getDetectorValue a p w img
     | a < pi/4 || a > (3 * pi)/4 = getLineAvg a p w getX img
     | otherwise = getLineAvg a p w getY img
 
@@ -108,7 +106,7 @@ processImage fname nsteps nrays opening' = do
         angle = takeWhile (<pi) [x * step | x <- [0..]]
     putStrLn "Calculating projections"
     let listOfP = P.map (\v -> ((fromIntegral v) * p) - tresh) [0..nrays-1]
-        rest = P.map (\a -> P.map (\p -> getPixelLine a p w img) listOfP) angle
+        rest = P.map (\a -> P.map (\p -> getDetectorValue a p w img) listOfP) angle
         trans = fromListUnboxed (Z :. length rest :. length (head rest)) $ concat $ rest
         trans' = transpose trans
     x <- computeUnboxedP trans'
@@ -136,8 +134,8 @@ rgbToGrey (PixelRGB8 r g b) =
 
 imageToArray :: String -> IO (Int, Int, Array U DIM2 Double)
 imageToArray fname = do
-    Right imgD <- readImage fname
-    let (img@(Image w h _)) = convertRGB8 imgD 
-        arr = fromFunction (Z :. w :. h) (\(Z :. x :. y) -> rgbToGrey $ pixelAt img x y)
+    Right imgRGB <- readImage fname
+    let (imgGray@(Image w h _)) = convertRGB8 imgRGB
+        arr = fromFunction (Z :. w :. h) (\(Z :. x :. y) -> rgbToGrey $ pixelAt imgGray x y)
     img <- computeUnboxedP arr
     return (w, h, img)
