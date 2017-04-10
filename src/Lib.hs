@@ -16,15 +16,15 @@ myfilter r tresh v =
         then fromIntegral v * 0.6
         else 0
 
-normalize :: Monad m => Array U DIM2 Double -> m (Array U DIM2 Double)
+normalize :: Monad m => Array U DIM2 Double -> m (Array D DIM2 Double)
 normalize arr = do
     minn <- foldAllP min 1 arr
     let arrmin = R.map (+ (-minn)) arr
     maxx <- foldAllP max 0 arrmin
     let arrnorm = R.map (/maxx) arrmin
-    computeUnboxedP arrnorm
+    return arrnorm
 
-rowFilter :: Monad m => Array U DIM1 Double -> m (Array D DIM1 Double)
+rowFilter :: Monad m => Array D DIM1 Double -> m (Array D DIM1 Double)
 rowFilter row = do
     rowComplex <- computeP $ R.map (\x -> x :+ 0 ) row
     let fftF = fft $ rowComplex
@@ -35,20 +35,19 @@ rowFilter row = do
     ifftF <- fmap ifft $ computeP fftFilt
     return $ R.map realPart ifftF
 
-getRow :: Array U DIM2 Double -> Int -> Array D DIM1 Double
+getRow :: Array D DIM2 Double -> Int -> Array D DIM1 Double
 getRow array n = slice array (Any :. n :. All)
 
-mapRows :: Monad m => (Array U DIM1 Double -> m (Array D DIM1 Double)) -> Array U DIM2 Double -> m (Array U DIM2 Double)
+mapRows :: Monad m => (Array D DIM1 Double -> m (Array D DIM1 Double)) -> Array D DIM2 Double -> m (Array U DIM2 Double)
 mapRows func array = do
     let (Z :. w :. h) = extent array
     rows <- mapM (\num -> do
-        let rowD = getRow array num
-        row <- computeUnboxedP rowD
+        let row = getRow array num
         func row) [0,1..(w-1)]
     let hugeRow = toList $ foldr1 append rows
     return $ fromListUnboxed (Z :. w :. h) hugeRow
 
-reconstruct :: Array U DIM2 Double -> Double -> Int -> IO ()
+reconstruct :: Array D DIM2 Double -> Double -> Int -> IO ()
 reconstruct img p originalW = do
     let (Z :. w :. h) = extent img
         angleStep = pi / fromIntegral h
@@ -125,13 +124,13 @@ dToPx x
     | x > 1 = PixelYA8 255 255
     | otherwise = PixelYA8 (round (x * 255)) 255
 
-arraySaveToImage :: Array U DIM2 Double -> String -> IO ()
+arraySaveToImage :: Array D DIM2 Double -> String -> IO ()
 arraySaveToImage arr fname = do
     let (Z :. w :. h) = extent arr
     writePng ("res/" P.++ fname P.++ ".png") $ generateImage (\x y -> dToPx $ arr ! (Z :. x :. y)) w h
 
-rgbToGreyDouble :: PixelRGB8 -> Double
-rgbToGreyDouble  (PixelRGB8 r g b) = 
+rgbToGrey :: PixelRGB8 -> Double
+rgbToGrey (PixelRGB8 r g b) =
   let rgb = P.zipWith (*) [0.2126, 0.7152, 0.0722] $ P.map (fromIntegral) [r, g, b] 
   in fromInteger . round . sum $ rgb :: Double
 
@@ -139,6 +138,6 @@ imageToArray :: String -> IO (Int, Int, Array U DIM2 Double)
 imageToArray fname = do
     Right imgD <- readImage fname
     let (img@(Image w h _)) = convertRGB8 imgD 
-        arr = fromFunction (Z :. w :. h) (\(Z :. x :. y) -> let p = pixelAt img x y in rgbToGreyDouble p)
+        arr = fromFunction (Z :. w :. h) (\(Z :. x :. y) -> rgbToGrey $ pixelAt img x y)
     img <- computeUnboxedP arr
     return (w, h, img)
